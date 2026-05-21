@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      /* 基本スタイル（変更なし） */
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        padding: 20px;
+        background-color: #f8f9fa;
+      }
+
+      .container {
+        max-width: 500px;
+        margin: 40px auto;
+        padding: 20px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        color: #333;
+      }
+
+      label {
+        display: block;
+        margin-top: 20px;
+        font-weight: 600;
+        color: #555;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 16px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      input[type="text"]:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        outline: none;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        margin-top: 25px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+      }
+
+      button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+
+      #status {
+        margin-top: 20px;
+        padding: 10px;
+        border-radius: 4px;
+        display: none;
+      }
+
+      .success {
+        background-color: #d4edda;
+        color: #155724;
+      }
+
+      .error {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+
+      /* ★★★ここからが入力候補用の新しいスタイルです★★★ */
+      .autocomplete {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+      }
+
+      .autocomplete-items {
+        position: absolute;
+        border: 1px solid #d4d4d4;
+        border-bottom: none;
+        border-top: none;
+        z-index: 99;
+        top: 100%;
+        left: 0;
+        right: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #fff;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .autocomplete-item {
+        padding: 10px;
+        cursor: pointer;
+        border-bottom: 1px solid #d4d4d4;
+        font-size: 14px;
+      }
+
+      .autocomplete-item:hover {
+        background-color: #e9e9e9;
+      }
+
+      .autocomplete-item strong {
+        color: #007bff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>アンケート送付ツール</h1>
+      <label for="recipient-input">宛先:</label>
+      <div class="autocomplete">
+        <input type="text" id="recipient-input" placeholder="名前またはメールアドレスを入力..." autocomplete="off">
+        <div id="recipient-suggestions" class="autocomplete-items"></div>
+      </div>
+      <label for="subject">案件名:</label>
+      <input type="text" id="subject" required>
+      <button id="sendButton" onclick="sendEmail()">アンケートを送信</button>
+      <div id="status"></div>
+    </div>
+    <script>
+      let allRecipients = [];
+
+        window.onload = function() {
+            google.script.run.withSuccessHandler(setupAutocomplete).getRecipientData();
+        };
+
+        function setupAutocomplete(data) {
+            // (この関数は変更ありません)
+            allRecipients = data;
+            const input = document.getElementById('recipient-input');
+            const suggestionsContainer = document.getElementById('recipient-suggestions');
+            input.addEventListener('input', function() {
+                const value = this.value.toLowerCase();
+                suggestionsContainer.innerHTML = '';
+                if (!value) return;
+                const matches = allRecipients.filter(r => 
+                    r.name.toLowerCase().includes(value) || r.email.toLowerCase().includes(value)
+                );
+                matches.forEach(match => {
+                    const item = document.createElement('DIV');
+                    item.className = 'autocomplete-item';
+                    const displayValue = `${match.name} &lt;${match.email}&gt;`;
+                    const regex = new RegExp(value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi');
+                    item.innerHTML = displayValue.replace(regex, (matched) => `<strong>${matched}</strong>`);
+                    item.addEventListener('click', function() {
+                        input.value = `${match.name} <${match.email}>`;
+                        suggestionsContainer.innerHTML = '';
+                    });
+                    suggestionsContainer.appendChild(item);
+                });
+            });
+            document.addEventListener('click', function (e) {
+                if (e.target !== input) {
+                    suggestionsContainer.innerHTML = '';
+                }
+            });
+        }
+
+        // 送信ボタンが押されたときの処理
+        function sendEmail() {
+            const button = document.getElementById('sendButton');
+            const status = document.getElementById('status');
+            
+            button.disabled = true;
+            button.textContent = '処理中...';
+            status.style.display = 'none';
+
+            const rawValue = document.getElementById('recipient-input').value;
+            const emailMatch = rawValue.match(/<([^>]+)>/);
+            const recipientEmail = emailMatch ? emailMatch[1] : rawValue;
+            const nameMatch = rawValue.match(/(.*)\s*</);
+            const recipientName = nameMatch ? nameMatch[1] : '';
+            const subject = document.getElementById('subject').value;
+
+            // ステップ1：高速なログ記録処理を呼び出す
+            google.script.run
+                .withSuccessHandler(handleLogSuccess) // 成功したら次のステップへ
+                .withFailureHandler(handleFailure)
+                .logAndPrepareEmail(recipientEmail, recipientName, subject);
+        }
+
+        // ステップ1（ログ記録）が成功した後の処理
+        function handleLogSuccess(result) {
+            const button = document.getElementById('sendButton');
+            const status = document.getElementById('status');
+
+            // サーバー側でエラーが起きた場合
+            if (result.error) {
+                status.textContent = `エラー: ${result.error}`;
+                status.className = 'error';
+                status.style.display = 'block';
+                button.disabled = false;
+                button.textContent = 'アンケートを送信';
+                return;
+            }
+
+            // ★すぐにユーザーに応答を返す★
+            status.textContent = `「${result.recipientEmail}」への送信処理を開始しました。`;
+            status.className = 'success';
+            status.style.display = 'block';
+            button.disabled = false;
+            button.textContent = 'アンケートを送信';
+            document.getElementById('recipient-input').value = '';
+            document.getElementById('subject').value = '';
+
+            // ステップ2：時間のかかるメール送信を「撃ちっぱなし」で呼び出す
+            google.script.run.sendEmailInBackground(result);
+        }
+
+        // 何らかの予期せぬエラーが起きたときの処理
+        function handleFailure(error) {
+            const button = document.getElementById('sendButton');
+            const status = document.getElementById('status');
+            status.textContent = `予期せぬエラー: ${error.message}`;
+            status.className = 'error';
+            status.style.display = 'block';
+            button.disabled = false;
+            button.textContent = 'アンケートを送信';
+        }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+        :root {
+            --primary-color: #007bff;
+            --star-color: #f5b301;
+            --background-color: #f4f7f9;
+            --card-background: #ffffff;
+            --text-color: #212529;
+            --subtle-text-color: #5a6470;
+            --border-color: #e9ecef;
+        }
+        
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            padding: 20px 15px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 680px;
+            margin: 20px auto;
+            padding: 40px 50px;
+            background-color: var(--card-background);
+            border-radius: 12px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            display: inline-block;
+            border-bottom: 3px solid var(--primary-color);
+        }
+        .header p {
+            line-height: 1.8;
+            color: var(--subtle-text-color);
+            margin-bottom: 10px;
+            font-weight: 400;
+            max-width: 580px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .header .subtle-text {
+            font-size: 14px;
+            color: #8a94a0;
+        }
+
+        .question-box {
+            margin-top: 40px;
+            padding-top: 25px;
+            border-top: 1px solid var(--border-color);
+        }
+        .question-title {
+            font-weight: 500;
+            margin-bottom: 20px;
+            font-size: 18px;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .star-rating {
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: center;
+            gap: 5px;
+        }
+        .star-rating input { display: none; }
+        .star-rating label {
+            font-size: 2.8em;
+            color: #e0e0e0;
+            cursor: pointer;
+            transition: color 0.2s ease-in-out, transform 0.1s ease-in-out;
+        }
+        .star-rating label:hover,
+        .star-rating label:hover ~ label { color: var(--star-color); }
+        .star-rating input:checked ~ label { color: var(--star-color); }
+        .star-rating label:hover { transform: scale(1.1); }
+
+        .submit-button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 40px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 700;
+            border-radius: 8px;
+            transition: background-color 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 5px rgba(0,123,255,0.2);
+        }
+        .submit-button:hover:not(:disabled) {
+            background-color: #0056b3;
+            box-shadow: 0 4px 10px rgba(0,123,255,0.3);
+        }
+        .submit-button:disabled { background-color: #ccc; cursor: not-allowed; box-shadow: none; }
+
+        #thank-you {
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #155724;
+            padding: 40px 20px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+        }
+
+        #already-answered {
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #856404;
+            padding: 40px 20px;
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+        }
+
+        .comment-box {
+            margin-top: 40px;
+            padding-top: 25px;
+            border-top: 1px solid var(--border-color);
+        }
+        .comment-box textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 14px;
+            color: var(--text-color);
+            resize: vertical;
+            min-height: 100px;
+        }
+        .comment-box textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="survey-form" class="container">
+        <div class="header">
+            <h1>ITDCの対応に関する<br>フィードバックのお願い</h1>
+            <p>この度は、ツールのご利用や各種ご相談など、誠にありがとうございました。</p>
+            <p>今後の開発やサポート品質の向上のため、星を選択するだけ（5問・30秒程度）の簡単なアンケートにご協力いただけますと幸いです。</p>
+            <p class="subtle-text">本アンケートは、ご回答者様が特定される仕組みにはなっておりません。どうぞご安心の上、ご回答ください。</p>
+        </div>
+
+        <input type="hidden" id="surveyId" value="<?= surveyId ?>">
+
+        <div class="question-box">
+            <div class="question-title">1. 今回のITDCの対応（成果物・相談）に対する総合的な満足度を教えてください。</div>
+            <div class="star-rating" id="q1">
+                <input type="radio" id="q1-5" name="q1" value="5"><label for="q1-5">★</label>
+                <input type="radio" id="q1-4" name="q1" value="4"><label for="q1-4">★</label>
+                <input type="radio" id="q1-3" name="q1" value="3"><label for="q1-3">★</label>
+                <input type="radio" id="q1-2" name="q1" value="2"><label for="q1-2">★</label>
+                <input type="radio" id="q1-1" name="q1" value="1"><label for="q1-1">★</label>
+            </div>
+        </div>
+        
+        <div class="question-box">
+            <div class="question-title">2. 提供した成果物やアドバイスは、あなたの業務に役立ちましたか？</div>
+            <div class="star-rating" id="q2">
+                <input type="radio" id="q2-5" name="q2" value="5"><label for="q2-5">★</label>
+                <input type="radio" id="q2-4" name="q2" value="4"><label for="q2-4">★</label>
+                <input type="radio" id="q2-3" name="q2" value="3"><label for="q2-3">★</label>
+                <input type="radio" id="q2-2" name="q2" value="2"><label for="q2-2">★</label>
+                <input type="radio" id="q2-1" name="q2" value="1"><label for="q2-1">★</label>
+            </div>
+        </div>
+        
+        <div class="question-box">
+            <div class="question-title">3. こちらからの説明や連絡は、分かりやすかったですか？</div>
+            <div class="star-rating" id="q3">
+                <input type="radio" id="q3-5" name="q3" value="5"><label for="q3-5">★</label>
+                <input type="radio" id="q3-4" name="q3" value="4"><label for="q3-4">★</label>
+                <input type="radio" id="q3-3" name="q3" value="3"><label for="q3-3">★</label>
+                <input type="radio" id="q3-2" name="q3" value="2"><label for="q3-2">★</label>
+                <input type="radio" id="q3-1" name="q3" value="1"><label for="q3-1">★</label>
+            </div>
+        </div>
+        
+        <div class="question-box">
+            <div class="question-title">4. 対応のスピード感はいかがでしたか？</div>
+            <div class="star-rating" id="q4">
+                <input type="radio" id="q4-5" name="q4" value="5"><label for="q4-5">★</label>
+                <input type="radio" id="q4-4" name="q4" value="4"><label for="q4-4">★</label>
+                <input type="radio" id="q4-3" name="q4" value="3"><label for="q4-3">★</label>
+                <input type="radio" id="q4-2" name="q4" value="2"><label for="q4-2">★</label>
+                <input type="radio" id="q4-1" name="q4" value="1"><label for="q4-1">★</label>
+            </div>
+        </div>
+        
+        <div class="question-box">
+            <div class="question-title">5. 今後もITDCに、同様の依頼や相談をしたいと思いますか？</div>
+            <div class="star-rating" id="q5">
+                <input type="radio" id="q5-5" name="q5" value="5"><label for="q5-5">★</label>
+                <input type="radio" id="q5-4" name="q5" value="4"><label for="q5-4">★</label>
+                <input type="radio" id="q5-3" name="q5" value="3"><label for="q5-3">★</label>
+                <input type="radio" id="q5-2" name="q5" value="2"><label for="q5-2">★</label>
+                <input type="radio" id="q5-1" name="q5" value="1"><label for="q5-1">★</label>
+            </div>
+        </div>
+        <div class="question-box comment-box">
+            <div class="question-title" style="text-align:left; font-size:16px;">6. ご意見・ご感想があればお聞かせください（任意）</div>
+            <textarea id="comment" placeholder="自由にご記入ください..."></textarea>
+        </div>
+
+        <button class="submit-button" id="submitBtn" onclick="submitResponse()">回答を送信する</button>
+
+    </div>
+    
+    <script>
+      function validateForm() {
+        for (let i = 1; i <= 5; i++) {
+          if (!document.querySelector(`input[name="q${i}"]:checked`)) {
+            return false;
+          }
+        }
+        return true;
+      }
+    
+      function submitResponse() {
+        if (!validateForm()) {
+          alert('すべての質問にお答えください。');
+          return;
+        }
+
+        const button = document.getElementById('submitBtn');
+        button.disabled = true;
+        button.textContent = '送信中...';
+        
+        const response = {
+          surveyId: document.getElementById('surveyId').value,
+          q1: document.querySelector('input[name="q1"]:checked').value,
+          q2: document.querySelector('input[name="q2"]:checked').value,
+          q3: document.querySelector('input[name="q3"]:checked').value,
+          q4: document.querySelector('input[name="q4"]:checked').value,
+          q5: document.querySelector('input[name="q5"]:checked').value,
+          comment: document.getElementById('comment').value
+        };
+
+        google.script.run
+          .withSuccessHandler(function(result) {
+            const formDiv = document.getElementById('survey-form');
+            if (result.duplicate) {
+              formDiv.innerHTML = '<div id="already-answered">このアンケートはすでにご回答いただいております。<br>ご協力ありがとうございました。</div>';
+            } else if (result.error) {
+              button.disabled = false;
+              button.textContent = '回答を送信する';
+              alert(`エラーが発生しました。もう一度お試しください。\n(${result.error})`);
+            } else {
+              formDiv.innerHTML = '<div id="thank-you">ご回答ありがとうございました。<br>いただいたフィードバックは今後の改善に活かしてまいります。</div>';
+            }
+          })
+          .saveResponse(response);
+      }
+    </script>
+</body>
+</html>

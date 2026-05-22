@@ -5,6 +5,81 @@
 const SPREADSHEET = SpreadsheetApp.getActiveSpreadsheet();
 const HISTORY_SHEET_NAME = '履歴';
 
+// 本番 Web アプリ URL（末尾 /exec まで、?surveyId= より前のみ）
+// GAS「デプロイ」→「デプロイを管理」→ ウェブアプリの URL をコピーして貼る（当時のメールは不要）
+const WEB_APP_URL = 'https://script.google.com/a/macros/crestec.co.jp/s/AKfycbzP7NlRT4B04XAH-9jcoPV6R1D5fTeZLdt4QOSjBeoNuVFtMOfZSE1ASQ90bGn_H7NV/exec';
+
+const SURVEY_URL_COL = 13; // N列（0始まり）
+
+/** 設定済みの本番 URL（未設定ならエラー＝手順を案内） */
+function getWebAppBaseUrl_() {
+  const url = (WEB_APP_URL && WEB_APP_URL.trim()) ? WEB_APP_URL.trim() : '';
+  if (!url) {
+    throw new Error(
+      'WEB_APP_URL が未設定です。GAS「デプロイ」→「デプロイを管理」→ ウェブアプリの URL（/exec）を ' +
+      'コード先頭の WEB_APP_URL に貼り付けてください。'
+    );
+  }
+  const base = url.replace(/\/$/, '');
+  if (!/\/exec$/i.test(base)) {
+    throw new Error('WEB_APP_URL は /exec で終わる本番デプロイの URL にしてください。');
+  }
+  return base;
+}
+
+/** アンケート URL を組み立てる */
+function buildSurveyUrl(uniqueId) {
+  const base = (WEB_APP_URL && WEB_APP_URL.trim())
+    ? getWebAppBaseUrl_()
+    : ScriptApp.getService().getUrl().replace(/\/$/, '');
+  return `${base}?surveyId=${encodeURIComponent(uniqueId)}`;
+}
+
+/** リマインダー用：N列 → なければ WEB_APP_URL + ユニークID で復元 */
+function resolveSurveyUrl_(uniqueId, storedUrl) {
+  if (storedUrl && String(storedUrl).trim()) {
+    return String(storedUrl).trim();
+  }
+  return buildSurveyUrl(uniqueId);
+}
+
+/**
+ * 履歴シート N 列のアンケートURLを一括で埋める（当時のメールがなくても可）
+ * 1. WEB_APP_URL を設定  2. この関数をエディタから1回実行
+ */
+function backfillSurveyUrlsInHistory() {
+  const base = getWebAppBaseUrl_();
+  const historySheet = SPREADSHEET.getSheetByName(HISTORY_SHEET_NAME);
+  if (!historySheet.getRange(1, SURVEY_URL_COL + 1).getValue()) {
+    historySheet.getRange(1, SURVEY_URL_COL + 1).setValue('アンケートURL');
+  }
+
+  const data = historySheet.getDataRange().getValues();
+  let count = 0;
+  let sampleUrl = '';
+
+  for (let i = 1; i < data.length; i++) {
+    const uniqueId = data[i][0];
+    if (!uniqueId) continue;
+    const url = `${base}?surveyId=${encodeURIComponent(uniqueId)}`;
+    historySheet.getRange(i + 1, SURVEY_URL_COL + 1).setValue(url);
+    if (!sampleUrl) sampleUrl = url;
+    count++;
+  }
+
+  console.log(`アンケートURLを ${count} 件更新しました。確認用: ${sampleUrl}`);
+  return { updated: count, sampleUrl: sampleUrl };
+}
+
+/**
+ * 指定 ID の URL をログに出す（例: previewSurveyUrl('wz92')）
+ */
+function previewSurveyUrl(surveyId) {
+  const url = buildSurveyUrl(surveyId);
+  console.log(url);
+  return url;
+}
+
 function doGet(e) {
   // (この部分は変更ありません)
   if (e.parameter.surveyId) {
@@ -27,12 +102,13 @@ function logAndPrepareEmail(recipientEmail, recipientName, subject) {
     }
     const operatorEmail = Session.getActiveUser().getEmail();
     const uniqueId = Math.random().toString(36).slice(-4);
-    const surveyUrl = `${ScriptApp.getService().getUrl()}?surveyId=${uniqueId}`;
+    const surveyUrl = buildSurveyUrl(uniqueId);
 
-    // 履歴シートに記録
+    // 履歴シートに記録（N列に初回と同じアンケートURLを保存 → リマインダーで再利用）
     const historySheet = SPREADSHEET.getSheetByName(HISTORY_SHEET_NAME);
     historySheet.appendRow([
-      uniqueId, '処理開始', new Date(), operatorEmail, recipientEmail, subject
+      uniqueId, '処理開始', new Date(), operatorEmail, recipientEmail, subject,
+      '', '', '', '', '', '', '', surveyUrl
     ]);
 
     // 次のステップ（メール送信）に必要な情報をまとめて返す
@@ -180,7 +256,6 @@ function sendReminders() {
   const historySheet = SPREADSHEET.getSheetByName(HISTORY_SHEET_NAME);
   const data = historySheet.getDataRange().getValues();
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-  const baseUrl = ScriptApp.getService().getUrl();
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][1] !== '処理開始') continue;
@@ -189,7 +264,7 @@ function sendReminders() {
     const uniqueId = data[i][0];
     const recipientEmail = data[i][4];
     const subject = data[i][5];
-    const surveyUrl = `${baseUrl}?surveyId=${uniqueId}`;
+    const surveyUrl = resolveSurveyUrl_(uniqueId, data[i][SURVEY_URL_COL]);
 
     try {
       const htmlBody = `
